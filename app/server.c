@@ -1,40 +1,26 @@
 
 #include "http.h"
 #include "helper.h"
+#include <pthread.h>
 
-int main() {
-	// Disable output buffering
-	setbuf(stdout, NULL);
-
+void* handle_request(void *arg) {
+	int id = *((int *) arg);
 	// Ok Response
 	struct http_response *ok_res = create_http_response(200, "", 0, NULL, "OK", 3);
 
 	// Not Found Response
 	struct http_response *not_found_res = create_http_response(404, "", 0, NULL, "Not Found", 10);
 
-	// You can use print statements as follows for debugging, they'll be visible when running tests.
-	printf("Logs from your program will appear here!\n");
-
-	struct http_server server = {
-		.port = 4221,
-		.connection_backlog = 5,
-		.reuse = 1,
-	};
-
-	create_http_server(&server);
-	
-	struct sockaddr_in client_addr;
-
-	printf("Waiting for a client to connect...\n");
-	int client_addr_len = sizeof(client_addr);
-	
-	int id = accept(server.server_fd, (struct sockaddr *) &client_addr, &client_addr_len);
-	printf("Client connected\n");
-
-	uint8_t request_buffer[MAX_HEADER_SIZE + MAX_BODY_SIZE + MAX_URL_SIZE + MAX_EXTRA_SIZE];
-	int bytes_received = recv(id, request_buffer, sizeof(request_buffer), 0);
+	uint8_t request_buffer[500];
+	int bytes_received = read(id, request_buffer, sizeof(request_buffer));
+	if(bytes_received < 0) {
+		perror("Error receiving data from client");
+		return NULL;
+	}
 
 	struct http_request *req = parse_http_request(request_buffer, bytes_received);
+
+	printf("%s request at %s\n", request_method_to_string(req->method), req->url);
 
 	struct path *current = req->path;
 	if (req->method == GET && current == NULL) {
@@ -72,14 +58,51 @@ int main() {
 	else {
 		send_response(id, not_found_res);
 	}
-
-	// close the connection
-	free_http_request(req);
+	free_http_request(req);	
 	free_http_response(ok_res);
 	free_http_response(not_found_res);
+
+	return NULL;
+}
+
+void handle_client(struct http_server *server) {
+	while (1)
+	{
+		struct sockaddr_in client_addr;
+
+		int client_addr_len = sizeof(client_addr);
+		
+		int id = accept(server->server_fd, (struct sockaddr *) &client_addr, &client_addr_len);
+		// printf("Client connected\n");
+
+		pthread_t thread;
+		int *client_id = &id;
+
+		// handle_request(id, ok_res, not_found_res);
+		pthread_create(&thread, NULL, handle_request, (void *) client_id);
+
+		pthread_detach(thread);
+	}
+}
+
+int main() {
+	setbuf(stdout, NULL);
+
+	// printf("Logs from your program will appear here!\n");
+
+	struct http_server server = {
+		.port = 4221,
+		.connection_backlog = 20,
+		.reuse = 1,
+	};
+
+	create_http_server(&server);
+
+	handle_client(&server);
+
 	free_http_server(&server);
 
-	printf("Connection closed\n");
+	// printf("Connection closed\n");
 
 	return 0;
 }

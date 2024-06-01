@@ -254,3 +254,26 @@ void send_response(int id, struct http_response *res) {
     send(id, response, response_size, 0);
     free(response);
 }
+
+char* request_method_to_string(enum http_request_type method) {
+    switch (method) {
+        case GET:
+            return "GET";
+        case POST:
+            return "POST";
+        case PUT:
+            return "PUT";
+        case DELETE:
+            return "DELETE";
+        case PATCH:
+            return "PATCH";
+        case HEAD:
+            return "HEAD";
+        case OPTIONS:
+            return "OPTIONS";
+        case CONNECT:
+            return "CONNECT";
+        case TRACE:
+            return "TRACE";
+    }
+}

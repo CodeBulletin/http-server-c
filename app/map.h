@@ -1,3 +1,6 @@
+#ifndef MAP_H
+#define MAP_H
+
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -22,3 +25,5 @@ void insert(struct hashmap *hashmap, uint8_t *key, uint8_t *value);
 uint8_t *get(struct hashmap *hashmap, uint8_t *key);
 
 void free_hashmap(struct hashmap *hashmap);
+
+#endif

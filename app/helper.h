@@ -1,3 +1,6 @@
+#ifndef HELPER_H
+#define HELPER_H
+
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
@@ -22,3 +25,5 @@ uint8_t* integer_to_sring(uint32_t num) {
     }
     return str;
 }
+
+#endif

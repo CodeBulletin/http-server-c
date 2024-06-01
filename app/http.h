@@ -1,3 +1,6 @@
+#ifndef HTTP_H
+#define HTTP_H
+
 #include <stdio.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -68,3 +71,7 @@ void send_response(int id, struct http_response *res);
 void free_http_request(struct http_request *req);
 void free_http_server(struct http_server *server);
 void free_http_response(struct http_response *res);
+
+char* request_method_to_string(enum http_request_type method);
+
+#endif
