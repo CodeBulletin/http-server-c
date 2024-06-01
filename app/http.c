@@ -167,7 +167,7 @@ void free_http_response(struct http_response *res) {
 }
 
 uint8_t* http_response_to_string(struct http_response *res) {
-    uint8_t *response = malloc(res->body_size + res->msg_size + 100);
+    uint8_t *response = malloc(res->body_size + res->msg_size + 1024);
     sprintf(response, "HTTP/1.1 %d", res->status_code);
     if (res->msg_size != 0) {
         sprintf(response + strlen(response), " %s", res->msg);
