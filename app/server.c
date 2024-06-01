@@ -12,9 +12,8 @@ int main() {
 
 	// Not Found Response
 	struct http_response *not_found_res = create_http_response(404, "", 0, NULL, 0, "Not Found", 9);
-	uint8_t *not_found_res_str = http_response_to_string(not_found_res);\
+	uint8_t *not_found_res_str = http_response_to_string(not_found_res);
 	size_t not_found_res_str_len = strlen(not_found_res_str);
-
 
 	// You can use print statements as follows for debugging, they'll be visible when running tests.
 	printf("Logs from your program will appear here!\n");
@@ -43,7 +42,7 @@ int main() {
 	if (req->method == GET && strcmp(req->url, "/") == 0) {
 		send(id, ok_res_str, ok_res_str_len, 0);
 	} else {
-		// send(id, not_found_res_str, strlen(not_found_res_str), 0);
+		send(id, not_found_res_str, strlen(not_found_res_str), 0);
 	}
 
 	// close the connection

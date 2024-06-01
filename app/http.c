@@ -13,30 +13,28 @@ int get_path_length(uint8_t *path) {
 
 
 void parse_path(struct http_request *req) {
-    int path_length = get_path_length(req->url);
-    req->path = malloc(sizeof(struct path *) * path_length + 1);
-    req->path_size = path_length + 1;
-    int path_index = 0;
-    int path_start = 0;
+    // int path_length = get_path_length(req->url);
+    // req->path = malloc(sizeof(struct path *) * path_length + 1);
+    // req->path_size = path_length + 1;
+    // int path_index = 0;
+    // int path_start = 0;
 
-    // use the string method to find the path
-    char* i = strtok(req->url, "/");
-    while (i != NULL) {
-        req->path[path_index] = malloc(sizeof(struct path));
-        req->path[path_index]->name = malloc(strlen(i) + 2);
-        strncpy(req->path[path_index]->name, "/", 1);
-        strncpy(req->path[path_index]->name + 1, i, strlen(i));
-        strncpy(req->path[path_index]->name + strlen(i) + 1, "\0", 1);
-        req->path[path_index]->name_size = strlen(i) + 1;
-        path_index++;
-        i = strtok(i, "/");
-    }
+    // for (int i = 1; i < strlen(req->url); i++) {
+    //     if (req->url[i] == '/') {
+    //         struct path *p = malloc(sizeof(struct path));
+    //         p->name = malloc(i - path_start);
+    //         strncpy(p->name, req->url + path_start, i - path_start);
+    //         p->name[i - path_start] = '\0';
+    //         p->name_size = i - path_start;
+    //         req->path[path_index] = p;
+    //         path_start = i + 1;
+    //         path_index++;
+    //     }
+    // }
 
-    // add the last path
-    req->path[path_index] = malloc(sizeof(struct path));
-    req->path[path_index]->name = malloc(2);
-    strncpy(req->path[path_index]->name, "/\0", 2);
-    req->path[path_index]->name_size = 2;
+    // struct path *p = malloc(sizeof(struct path));
+    // p->name = malloc(strlen(req->url) - path_start);
+    // strncpy(p->name, 
 }
 
 struct http_request *parse_http_request(uint8_t *buffer, size_t buffer_size) {
@@ -82,10 +80,6 @@ struct http_request *parse_http_request(uint8_t *buffer, size_t buffer_size) {
     req->url_size = url_size + 1;
     printf("URL: %s\n", req->url);
     parse_path(req);
-    for (int i = 0; i < req->path_size; i++) {
-        printf("Path: %s\n", req->path[i]->name);
-    }
-    
 
     return req;
 }
