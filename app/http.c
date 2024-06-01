@@ -49,6 +49,52 @@ void parse_path(struct http_request *req) {
     req->path_size = path_count;
 }
 
+void *parse_http_headers(uint8_t *buffer, size_t buffer_size, struct http_request *req) {
+    // Skip to the first /r/n
+    uint8_t *current = buffer;
+    while (current[0] != '\r' && current[1] != '\n') {
+        current++;
+    }  
+    current += 2;
+
+    req->headers = create_hashmap(100);
+    
+    // Split the headers by /r/n
+    uint8_t *header = current;
+    uint8_t *header_end;
+    while (header[0] != '\r' && header[1] != '\n') {
+        header_end = header;
+        while (header_end[0] != '\r' && header_end[1] != '\n') {
+            header_end++;
+        }
+        header_end += 2;
+        if (header_end - header == 2) {
+            break;
+        }
+        // Process the header
+        uint8_t *header_name = header;
+        uint8_t *header_name_end = strchr(header_name, ':');
+        int header_name_size = header_name_end - header_name;
+        uint8_t *header_value = header_name_end + 2;
+        uint8_t *header_value_end = strchr(header_value, '\r');
+        int header_value_size = header_value_end - header_value;
+
+        uint8_t *name = malloc(header_name_size + 1);
+        strncpy(name, header_name, header_name_size);
+        name[header_name_size] = '\0';
+        uint8_t *value = malloc(header_value_size + 1);
+        strncpy(value, header_value, header_value_size);
+        value[header_value_size] = '\0';
+
+        insert(req->headers, name, value);
+
+        free(name);
+        free(value);
+
+        header = header_end;
+    }
+}
+
 struct http_request *parse_http_request(uint8_t *buffer, size_t buffer_size) {
     struct http_request *req = malloc(sizeof(struct http_request));
     int request_method_end = 0;
@@ -92,6 +138,9 @@ struct http_request *parse_http_request(uint8_t *buffer, size_t buffer_size) {
     req->url_size = url_size + 1;
     parse_path(req);
 
+    // parse the request headers
+    parse_http_headers(buffer, buffer_size, req);
+
     return req;
 }
 
@@ -105,6 +154,8 @@ void free_http_request(struct http_request *req) {
         free(current);
         current = next;
     }
+    if (req->headers != NULL)
+        free_hashmap(req->headers);
     free(req);
 }
 
@@ -141,7 +192,7 @@ void free_http_server(struct http_server *server) {
     close(server->server_fd);
 }
 
-struct http_response *create_http_response(uint16_t status_code, uint8_t *body, size_t body_size, struct http_header **headers, size_t headers_size, uint8_t *msg, size_t msg_size) {
+struct http_response *create_http_response(uint16_t status_code, uint8_t *body, size_t body_size, struct hashmap *headers, uint8_t *msg, size_t msg_size) {
     struct http_response *res = malloc(sizeof(struct http_response));
     res->status_code = status_code;
     if (body_size != 0) {
@@ -153,10 +204,7 @@ struct http_response *create_http_response(uint16_t status_code, uint8_t *body, 
         strncpy(res->body, "\0", 1);
         res->body_size = 1;
     }
-    if (headers_size != 0) {
-        res->headers = headers;
-    }
-    res->headers_size = headers_size;
+    res->headers = headers;
     if (msg_size != 0) {
         res->msg = malloc(msg_size);
         strncpy(res->msg, msg, msg_size);
@@ -171,12 +219,8 @@ struct http_response *create_http_response(uint16_t status_code, uint8_t *body, 
 
 void free_http_response(struct http_response *res) {
     free(res->body);
-    for (int i = 0; i < res->headers_size; i++) {
-        free(res->headers[i]->name);
-        free(res->headers[i]->value);
-        free(res->headers[i]);
-    }
-    free(res->headers);
+    if (res->headers != NULL)
+        free_hashmap(res->headers);
     free(res->msg);
     free(res);
 }
@@ -187,42 +231,26 @@ uint8_t* http_response_to_string(struct http_response *res) {
     if (res->msg_size != 0) {
         sprintf(response + strlen(response), " %s", res->msg);
     }
-    if (res->headers_size != 0) {
-        for (int i = 0; i < res->headers_size; i++) {
-            sprintf(response + strlen(response), "\r\n%s: %s", res->headers[i]->name, res->headers[i]->value);
+
+    if (res->headers != NULL) {
+        for (int i = 0; i < res->headers->capacity; i++) {
+            struct map *current = res->headers->maps[i];
+            while (current != NULL) {
+                sprintf(response + strlen(response), "\r\n%s: %s", current->key, current->value);
+                current = current->next;
+            }
         }
     }
+
     sprintf(response + strlen(response), "\r\n");
     sprintf(response + strlen(response), "\r\n%s", res->body);
-    // print /0 at the end of the response
     sprintf(response + strlen(response), "\0");
     return response;
-}
-
-struct http_header *create_http_header(uint8_t *name, size_t name_size, uint8_t *value, size_t value_size) {
-    struct http_header *header = malloc(sizeof(struct http_header));
-    header->name = malloc(name_size);
-    strncpy(header->name, name, name_size);
-    header->name_size = name_size;
-    header->value = malloc(value_size);
-    strncpy(header->value, value, value_size);
-    header->value_size = value_size;
-    return header;
-}
-
-struct http_header **create_http_headers(size_t size, struct http_header *header[]) {
-    struct http_header **headers = malloc(size * sizeof(struct http_header *));
-    printf("size: %d\n", size);
-    for (int i = 0; i < size; i++) {
-        headers[i] = header[i];
-    }
-    return headers;
 }
 
 void send_response(int id, struct http_response *res) {
     uint8_t *response = http_response_to_string(res);
     size_t response_size = strlen(response);
     send(id, response, response_size, 0);
-    printf("%s\n", response);
     free(response);
 }
