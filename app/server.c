@@ -6,7 +6,7 @@
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
-#include <asm-generic/socket.h>
+// #include <asm-generic/socket.h>
 
 int main() {
 	// Disable output buffering
