@@ -80,7 +80,12 @@ struct http_request *parse_http_request(uint8_t *buffer, size_t buffer_size) {
     strncpy(req->url, url_start, url_size);
     req->url[url_size] = '\0';
     req->url_size = url_size + 1;
+    printf("URL: %s\n", req->url);
     parse_path(req);
+    for (int i = 0; i < req->path_size; i++) {
+        printf("Path: %s\n", req->path[i]->name);
+    }
+    
 
     return req;
 }
