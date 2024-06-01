@@ -172,8 +172,12 @@ uint8_t* http_response_to_string(struct http_response *res) {
     if (res->msg_size != 0) {
         sprintf(response + strlen(response), " %s", res->msg);
     }
-    for (int i = 0; i < res->headers_size; i++) {
-        sprintf(response + strlen(response), "\r\n%s: %s", res->headers[i].name, res->headers[i].value);
+    if (res->headers_size != 0) {
+        for (int i = 0; i < res->headers_size; i++) {
+            sprintf(response + strlen(response), "\r\n%s: %s", res->headers[i].name, res->headers[i].value);
+        }
+    } else {
+        sprintf(response + strlen(response), "\r\n");
     }
     sprintf(response + strlen(response), "\r\n%s", res->body);
     // print /0 at the end of the response
