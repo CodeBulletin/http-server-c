@@ -174,5 +174,7 @@ uint8_t* http_response_to_string(struct http_response *res) {
         sprintf(response + strlen(response), "\r\n%s: %s", res->headers[i].name, res->headers[i].value);
     }
     sprintf(response + strlen(response), "\r\n%s", res->body);
+    // print /0 at the end of the response
+    sprintf(response + strlen(response), "\0");
     return response;
 }

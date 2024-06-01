@@ -9,15 +9,11 @@ int main() {
 	struct http_response *ok_res = create_http_response(200, "", 0, NULL, 0, "OK", 2);
 	uint8_t *ok_res_str = http_response_to_string(ok_res);
 	size_t ok_res_str_len = strlen(ok_res_str);
-	printf("%s\n", ok_res_str);
-	printf("%zu\n", ok_res_str_len);
 
 	// Not Found Response
 	struct http_response *not_found_res = create_http_response(404, "", 0, NULL, 0, "Not Found", 9);
 	uint8_t *not_found_res_str = http_response_to_string(not_found_res);\
 	size_t not_found_res_str_len = strlen(not_found_res_str);
-	printf("%s\n", not_found_res_str);
-	printf("%zu\n", not_found_res_str_len);
 
 
 	// You can use print statements as follows for debugging, they'll be visible when running tests.
@@ -45,9 +41,9 @@ int main() {
 	struct http_request *req = parse_http_request(request_buffer, bytes_received);
 
 	if (req->method == GET && strcmp(req->url, "/") == 0) {
-		send(id, ok_res_str, strlen(ok_res_str), 0);
+		send(id, ok_res_str, ok_res_str_len, 0);
 	} else {
-		send(id, not_found_res_str, strlen(not_found_res_str), 0);
+		// send(id, not_found_res_str, strlen(not_found_res_str), 0);
 	}
 
 	// close the connection
