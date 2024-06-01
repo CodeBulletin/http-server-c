@@ -6,12 +6,12 @@ int main() {
 	setbuf(stdout, NULL);
 
 	// Ok Response
-	struct http_response *ok_res = create_http_response(200, "", 0, NULL, 0, "OK", 2);
+	struct http_response *ok_res = create_http_response(200, "", 0, NULL, 0, "OK", 3);
 	uint8_t *ok_res_str = http_response_to_string(ok_res);
 	size_t ok_res_str_len = strlen(ok_res_str);
 
 	// Not Found Response
-	struct http_response *not_found_res = create_http_response(404, "", 0, NULL, 0, "Not Found", 9);
+	struct http_response *not_found_res = create_http_response(404, "", 0, NULL, 0, "Not Found", 10);
 	uint8_t *not_found_res_str = http_response_to_string(not_found_res);
 	size_t not_found_res_str_len = strlen(not_found_res_str);
 
