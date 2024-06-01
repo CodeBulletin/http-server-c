@@ -3,61 +3,184 @@
 #include "helper.h"
 #include <pthread.h>
 
-void* handle_request(void *arg) {
-	int id = *((int *) arg);
-	// Ok Response
-	struct http_response *ok_res = create_http_response(200, "", 0, NULL, "OK", 3);
+char* directory = NULL;
+
+void echo(int id, uint8_t *data, size_t data_size) {
+	// Bad Request Response
+	struct hashmap *bad_request_headers = create_hashmap(2);
+	insert(bad_request_headers, "Content-Type", "text/plain");
+	insert(bad_request_headers, "Content-Length", "25");
+	struct http_response *bad_request_res = create_http_response(400, "Bad Request Echo is Empty", 26, bad_request_headers, "Bad Request", 12);
+
+	if (data_size == 0) {
+		send_response(id, bad_request_res);
+		free_http_response(bad_request_res);
+		return;
+	}
+
+	struct hashmap *headers = create_hashmap(2);
+	insert(headers, "Content-Type", "text/plain");
+	uint8_t *content_length = integer_to_sring(data_size);
+	insert(headers, "Content-Length", content_length);
+	free(content_length);
+
+	struct http_response *echo_res = create_http_response(200, data, data_size, headers, "OK", 3);
+	send_response(id, echo_res);
+	free_http_response(echo_res);
+	free_http_response(bad_request_res);
+}
+
+void userAgent(int id, uint8_t *data, size_t data_size) {
+	// Bad Request Response
+	struct hashmap *bad_request_headers = create_hashmap(2);
+	insert(bad_request_headers, "Content-Type", "text/plain");
+	insert(bad_request_headers, "Content-Length", "25");
+	struct http_response *bad_request_res = create_http_response(400, "Bad Request User-Agent is Empty", 30, bad_request_headers, "Bad Request", 12);
+
+	if (data == NULL || data_size == 0) {
+		send_response(id, bad_request_res);
+		free_http_response(bad_request_res);
+		return;
+	}
+
+	struct hashmap *headers = create_hashmap(2);
+	insert(headers, "Content-Type", "text/plain");
+	uint8_t *content_length = integer_to_sring(data_size);
+	insert(headers, "Content-Length", content_length);
+	free(content_length);
+
+	struct http_response *user_agent_res = create_http_response(200, data, data_size, headers, "OK", 3);
+	send_response(id, user_agent_res);
+	free_http_response(user_agent_res);
+	free_http_response(bad_request_res);
+}
+
+void getFile(int id, uint8_t *data, size_t data_size) {
+	// Internal Server Error Response
+	struct hashmap *internal_server_error_headers = create_hashmap(2);
+	insert(internal_server_error_headers, "Content-Type", "text/plain");
+	insert(internal_server_error_headers, "Content-Length", "21");
+	struct http_response *internal_server_error_res = create_http_response(500, "Internal Server Error", 22, internal_server_error_headers, "Internal Server Error", 22);
+
+	if (directory == NULL) {
+		send_response(id, internal_server_error_res);
+		free_http_response(internal_server_error_res);
+		return;
+	}
+
+	// Bad Request Response
+	struct hashmap *bad_request_headers = create_hashmap(2);
+	insert(bad_request_headers, "Content-Type", "text/plain");
+	insert(bad_request_headers, "Content-Length", "25");
+	struct http_response *bad_request_res = create_http_response(400, "Bad Request Files is Empty", 26, bad_request_headers, "Bad Request", 11);
+
+	if (data_size == 0) {
+		send_response(id, bad_request_res);
+		free_http_response(bad_request_res);
+		return;
+	}
 
 	// Not Found Response
-	struct http_response *not_found_res = create_http_response(404, "", 0, NULL, "Not Found", 10);
+	struct hashmap *not_found_headers = create_hashmap(2);
+	insert(not_found_headers, "Content-Type", "text/plain");
+	insert(not_found_headers, "Content-Length", "0");
+	struct http_response *not_found_res = create_http_response(404, "", 0, not_found_headers, "Not Found", 10);
 
-	uint8_t request_buffer[500];
-	int bytes_received = read(id, request_buffer, sizeof(request_buffer));
+	// Search for the files in directory and send the file
+	uint8_t *file_path = malloc(data_size + strlen(directory) + 1);
+	strncpy(file_path, directory, strlen(directory));
+	strncpy(file_path + strlen(directory), data, data_size);
+	file_path[data_size + strlen(directory)] = '\0';
+
+	FILE *file = fopen(file_path, "r");
+	if (file == NULL) {
+		send_response(id, not_found_res);
+		free(file_path);
+		free_http_response(internal_server_error_res);
+		free_http_response(bad_request_res);
+		free_http_response(not_found_res);
+		return;
+	}
+
+	fseek(file, 0, SEEK_END);
+	size_t file_size = ftell(file);
+	fseek(file, 0, SEEK_SET);
+
+	uint8_t *file_data = malloc(file_size);
+	fread(file_data, 1, file_size, file);
+	fclose(file);
+
+	struct hashmap *headers = create_hashmap(2);
+	insert(headers, "Content-Type", "application/octet-stream");
+	insert(headers, "Content-Length", integer_to_sring(file_size));
+	size_t content_length = file_size;
+
+	struct http_response *file_res = create_http_response(200, file_data, file_size, headers, "OK", 3);
+	send_response(id, file_res);
+
+	free(file_path);
+	free_http_response(internal_server_error_res);
+	free_http_response(bad_request_res);
+	free_http_response(not_found_res);
+}
+
+void* handle_request(void *arg) {
+	// Ok Response
+	struct hashmap *ok_headers = create_hashmap(2);
+	insert(ok_headers, "Content-Type", "text/plain");
+	insert(ok_headers, "Content-Length", "0");
+	struct http_response *ok_res = create_http_response(200, "", 0, ok_headers, "OK", 3);
+
+	// Not Found Response
+	struct hashmap *not_found_headers = create_hashmap(2);
+	insert(not_found_headers, "Content-Type", "text/plain");
+	insert(not_found_headers, "Content-Length", "0");
+	struct http_response *not_found_res = create_http_response(404, "", 0, not_found_headers, "Not Found", 10);
+
+
+	int id = *((int *) arg);
+	uint8_t* request_buffer = malloc(1024 * 1024);
+	int bytes_received = recv(id, request_buffer, 1024 * 1024, 0);
 	if(bytes_received < 0) {
 		perror("Error receiving data from client");
 		return NULL;
 	}
-
 	struct http_request *req = parse_http_request(request_buffer, bytes_received);
-
 	printf("%s request at %s\n", request_method_to_string(req->method), req->url);
+	struct http_path *current = req->path;
 
-	struct path *current = req->path;
 	if (req->method == GET && current == NULL) {
 		send_response(id, ok_res);
 	} else if (req->method == GET && current != NULL && strcmp(current->name, "echo") == 0) {
 		current = current->next;
+		uint8_t *data =  NULL;
+		size_t data_size = 0;
 		if (current != NULL) {
-			struct hashmap *headers = create_hashmap(2);
-			insert(headers, "Content-Type", "text/plain");
-			uint8_t *content_length = integer_to_sring(current->name_size - 1);
-			insert(headers, "Content-Length", content_length);
-			free(content_length);
-
-			struct http_response *echo_res = create_http_response(200, current->name, current->name_size, headers, "OK", 3);
-			send_response(id, echo_res);
-			free_http_response(echo_res);
-		} else {
-			send_response(id, not_found_res);
+			data = current->name;
+			data_size = current->name_size - 1;
 		}
+		echo(id, data, data_size);
 	} else if (req->method == GET && current != NULL && strcmp(current->name, "user-agent") == 0) {
-		if (get(req->headers, "User-Agent") != NULL) {
-			struct hashmap *headers = create_hashmap(2);
-			insert(headers, "Content-Type", "text/plain");
-			uint8_t *content_length = integer_to_sring(strlen(get(req->headers, "User-Agent")));
-			insert(headers, "Content-Length", content_length);
-			free(content_length);
-
-			struct http_response *user_agent_res = create_http_response(200, get(req->headers, "User-Agent"), strlen(get(req->headers, "User-Agent")), headers, "OK", 3);
-			send_response(id, user_agent_res);
-			free_http_response(user_agent_res);
-		} else {
-			send_response(id, not_found_res);
+		int length = 0;
+		uint8_t *user_agent = get(req->headers, "User-Agent");
+		if (user_agent != NULL) {
+			length = strlen(user_agent);
 		}
-	} 
+		userAgent(id, user_agent, length);
+	} else if (req->method == GET && current != NULL && strcmp(current->name, "files") == 0) {
+		current = current->next;
+		uint8_t *data =  NULL;
+		size_t data_size = 0;
+		if (current != NULL) {
+			data = current->name;
+			data_size = current->name_size - 1;
+		}
+		getFile(id, data, data_size);
+	}
 	else {
 		send_response(id, not_found_res);
 	}
+
 	free_http_request(req);	
 	free_http_response(ok_res);
 	free_http_response(not_found_res);
@@ -65,28 +188,14 @@ void* handle_request(void *arg) {
 	return NULL;
 }
 
-void handle_client(struct http_server *server) {
-	while (1)
-	{
-		struct sockaddr_in client_addr;
-
-		int client_addr_len = sizeof(client_addr);
-		
-		int id = accept(server->server_fd, (struct sockaddr *) &client_addr, &client_addr_len);
-		// printf("Client connected\n");
-
-		pthread_t thread;
-		int *client_id = &id;
-
-		// handle_request(id, ok_res, not_found_res);
-		pthread_create(&thread, NULL, handle_request, (void *) client_id);
-
-		pthread_detach(thread);
-	}
-}
-
-int main() {
+int main(int argc, char *argv[]) {
 	setbuf(stdout, NULL);
+
+	if (argc >= 2) {
+		if (strcmp(argv[1], "--directory") == 0) {
+			directory = argv[2];
+		}
+	}
 
 	// printf("Logs from your program will appear here!\n");
 
@@ -98,7 +207,7 @@ int main() {
 
 	create_http_server(&server);
 
-	handle_client(&server);
+	handle_client(&server, handle_request);
 
 	free_http_server(&server);
 

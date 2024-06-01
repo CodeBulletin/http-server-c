@@ -26,4 +26,17 @@ uint8_t* integer_to_sring(uint32_t num) {
     return str;
 }
 
+uint8_t* recvall(int id, uint8_t *buffer, size_t buffer_size, size_t chunk_size) {
+    size_t bytes_received = 0;
+    while (bytes_received < buffer_size) {
+        int bytes = read(id, buffer + bytes_received, chunk_size);
+        if (bytes < 0) {
+            perror("Error receiving data from client");
+            return NULL;
+        }
+        bytes_received += bytes;
+    }
+    return buffer;
+}
+
 #endif

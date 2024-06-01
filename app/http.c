@@ -1,17 +1,18 @@
 #include "http.h"
+#include <pthread.h>
 
 void parse_path(struct http_request *req) {
     int last_index = 1;
     int current_index = 1;
     int path_count = 0;
     req->path = NULL;
-    struct path *current_path = NULL;
+    struct http_path *current_path = NULL;
     
     for (; current_index < req->url_size - 1; current_index++) {
         if (req->url[current_index] == '/') {
             int path_size = current_index - last_index;
             if (path_size != 0) {
-                struct path *new_path = malloc(sizeof(struct path));
+                struct http_path *new_path = malloc(sizeof(struct http_path));
                 new_path->name = malloc(path_size + 1);
                 strncpy(new_path->name, req->url + last_index, path_size);
                 new_path->name[path_size] = '\0';
@@ -31,7 +32,7 @@ void parse_path(struct http_request *req) {
     }
     int path_size = current_index - last_index;
     if (path_size != 0) {
-        struct path *new_path = malloc(sizeof(struct path));
+        struct http_path *new_path = malloc(sizeof(struct http_path));
         new_path->name = malloc(path_size + 1);
         strncpy(new_path->name, req->url + last_index, path_size);
         new_path->name[path_size] = '\0';
@@ -146,8 +147,8 @@ struct http_request *parse_http_request(uint8_t *buffer, size_t buffer_size) {
 
 void free_http_request(struct http_request *req) {
     free(req->url);
-    struct path *current = req->path;
-    struct path *next;
+    struct http_path *current = req->path;
+    struct http_path *next;
     while (current != NULL) {
         next = current->next;
         free(current->name);
@@ -225,7 +226,7 @@ void free_http_response(struct http_response *res) {
     free(res);
 }
 
-uint8_t* http_response_to_string(struct http_response *res) {
+uint8_t* http_response_to_string(struct http_response *res, size_t *response_size) {
     uint8_t *response = malloc(1024 * 1024);
     sprintf(response, "HTTP/1.1 %d", res->status_code);
     if (res->msg_size != 0) {
@@ -244,14 +245,15 @@ uint8_t* http_response_to_string(struct http_response *res) {
 
     sprintf(response + strlen(response), "\r\n");
     sprintf(response + strlen(response), "\r\n%s", res->body);
-    sprintf(response + strlen(response), "\0");
+    *response_size = strlen(response);
+
     return response;
 }
 
 void send_response(int id, struct http_response *res) {
-    uint8_t *response = http_response_to_string(res);
-    size_t response_size = strlen(response);
-    send(id, response, response_size, 0);
+    size_t res_size;
+    uint8_t *response = http_response_to_string(res, &res_size);
+    send(id, response, res_size, 0);
     free(response);
 }
 
@@ -276,4 +278,24 @@ char* request_method_to_string(enum http_request_type method) {
         case TRACE:
             return "TRACE";
     }
+}
+
+void handle_client(struct http_server *server, void *(*handle_request)(void *)) {
+	while (1)
+	{
+		struct sockaddr_in client_addr;
+
+		int client_addr_len = sizeof(client_addr);
+		
+		int id = accept(server->server_fd, (struct sockaddr *) &client_addr, &client_addr_len);
+		// printf("Client connected\n");
+
+		pthread_t thread;
+		int *client_id = &id;
+
+		// handle_request(id, ok_res, not_found_res);
+		pthread_create(&thread, NULL, handle_request, (void *) client_id);
+
+		pthread_detach(thread);
+	}
 }

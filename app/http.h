@@ -36,10 +36,10 @@ struct http_server
     uint16_t port;
 };
 
-struct path {
+struct http_path {
     uint8_t *name;
     size_t name_size;
-    struct path *next;
+    struct http_path *next;
 };
 
 struct http_request {
@@ -49,7 +49,7 @@ struct http_request {
     size_t url_size;
     uint8_t *body;
     size_t body_size;
-    struct path *path;
+    struct http_path *path;
     size_t path_size;
 };
 
@@ -62,10 +62,16 @@ struct http_response {
     size_t msg_size;
 };
 
+struct http_app {
+    struct app* sub_routes;
+    uint8_t *route;
+    int id;
+};
+
 struct http_request *parse_http_request(uint8_t *buffer, size_t buffer_size);
 void create_http_server(struct http_server *server);
 struct http_response *create_http_response(uint16_t status_code, uint8_t *body, size_t body_size, struct hashmap *headers, uint8_t *msg, size_t msg_size);
-uint8_t* http_response_to_string(struct http_response *res);
+uint8_t* http_response_to_string(struct http_response *res, size_t *response_size);
 void send_response(int id, struct http_response *res);
 
 void free_http_request(struct http_request *req);
@@ -73,5 +79,9 @@ void free_http_server(struct http_server *server);
 void free_http_response(struct http_response *res);
 
 char* request_method_to_string(enum http_request_type method);
+
+void handle_client(struct http_server *server, void *(*handle_request)(void *));
+
+void cleanup(struct http_app *app);
 
 #endif
