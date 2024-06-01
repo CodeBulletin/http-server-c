@@ -7,13 +7,9 @@ int main() {
 
 	// Ok Response
 	struct http_response *ok_res = create_http_response(200, "", 0, NULL, 0, "OK", 3);
-	uint8_t *ok_res_str = http_response_to_string(ok_res);
-	size_t ok_res_str_len = strlen(ok_res_str);
 
 	// Not Found Response
 	struct http_response *not_found_res = create_http_response(404, "", 0, NULL, 0, "Not Found", 10);
-	uint8_t *not_found_res_str = http_response_to_string(not_found_res);
-	size_t not_found_res_str_len = strlen(not_found_res_str);
 
 	// You can use print statements as follows for debugging, they'll be visible when running tests.
 	printf("Logs from your program will appear here!\n");
@@ -39,19 +35,36 @@ int main() {
 
 	struct http_request *req = parse_http_request(request_buffer, bytes_received);
 
-	if (req->method == GET && strcmp(req->url, "/") == 0) {
-		send(id, ok_res_str, ok_res_str_len, 0);
+	struct path *current = req->path;
+	if (req->method == GET && current == NULL) {
+		send_response(id, ok_res);
+	} else if (req->method == GET && current != NULL && strcmp(current->name, "echo") == 0) {
+		current = current->next;
+		if (current != NULL) {
+			struct http_header *ct = create_http_header("Content-Type", 13, "text/plain", 11);
+			char str[20];
+			sprintf(str, "%d", current->name_size - 1);
+			struct http_header *cl = create_http_header("Content-Length", 15, str, current->name_size - 1);
+
+			struct http_header **headers = create_http_headers(2, (struct http_header *[]) {ct, cl});
+
+			struct http_response *echo_res = create_http_response(200, current->name, current->name_size, headers, 2, "OK", 3);
+			send_response(id, echo_res);
+			free_http_response(echo_res);
+		} else {
+			send_response(id, not_found_res);
+		}
 	} else {
-		send(id, not_found_res_str, strlen(not_found_res_str), 0);
+		send_response(id, not_found_res);
 	}
 
 	// close the connection
 	free_http_request(req);
 	free_http_response(ok_res);
 	free_http_response(not_found_res);
-	free(ok_res_str);
-	free(not_found_res_str);
 	free_http_server(&server);
+
+	printf("Connection closed\n");
 
 	return 0;
 }

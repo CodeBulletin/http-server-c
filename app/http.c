@@ -1,40 +1,52 @@
 #include "http.h"
 
-int get_path_length(uint8_t *path) {
-    int path_length = 0;
-    // ignore the first character
-    for (int i = 1; i < strlen(path); i++) {
-        if (path[i] == '/') {
-            path_length++;
+void parse_path(struct http_request *req) {
+    int last_index = 1;
+    int current_index = 1;
+    int path_count = 0;
+    req->path = NULL;
+    struct path *current_path = NULL;
+    
+    for (; current_index < req->url_size - 1; current_index++) {
+        if (req->url[current_index] == '/') {
+            int path_size = current_index - last_index;
+            if (path_size != 0) {
+                struct path *new_path = malloc(sizeof(struct path));
+                new_path->name = malloc(path_size + 1);
+                strncpy(new_path->name, req->url + last_index, path_size);
+                new_path->name[path_size] = '\0';
+                new_path->name_size = path_size + 1;
+                new_path->next = NULL;
+                if (req->path == NULL) {
+                    req->path = new_path;
+                    current_path = new_path;
+                } else {
+                    current_path->next = new_path;
+                    current_path = new_path;
+                }
+                path_count++;
+            }
+            last_index = current_index + 1;
         }
     }
-    return path_length;
-}
-
-
-void parse_path(struct http_request *req) {
-    // int path_length = get_path_length(req->url);
-    // req->path = malloc(sizeof(struct path *) * path_length + 1);
-    // req->path_size = path_length + 1;
-    // int path_index = 0;
-    // int path_start = 0;
-
-    // for (int i = 1; i < strlen(req->url); i++) {
-    //     if (req->url[i] == '/') {
-    //         struct path *p = malloc(sizeof(struct path));
-    //         p->name = malloc(i - path_start);
-    //         strncpy(p->name, req->url + path_start, i - path_start);
-    //         p->name[i - path_start] = '\0';
-    //         p->name_size = i - path_start;
-    //         req->path[path_index] = p;
-    //         path_start = i + 1;
-    //         path_index++;
-    //     }
-    // }
-
-    // struct path *p = malloc(sizeof(struct path));
-    // p->name = malloc(strlen(req->url) - path_start);
-    // strncpy(p->name, 
+    int path_size = current_index - last_index;
+    if (path_size != 0) {
+        struct path *new_path = malloc(sizeof(struct path));
+        new_path->name = malloc(path_size + 1);
+        strncpy(new_path->name, req->url + last_index, path_size);
+        new_path->name[path_size] = '\0';
+        new_path->name_size = path_size + 1;
+        new_path->next = NULL;
+        if (req->path == NULL) {
+            req->path = new_path;
+            current_path = new_path;
+        } else {
+            current_path->next = new_path;
+            current_path = new_path;
+        }
+        path_count++;
+    }
+    req->path_size = path_count;
 }
 
 struct http_request *parse_http_request(uint8_t *buffer, size_t buffer_size) {
@@ -78,7 +90,6 @@ struct http_request *parse_http_request(uint8_t *buffer, size_t buffer_size) {
     strncpy(req->url, url_start, url_size);
     req->url[url_size] = '\0';
     req->url_size = url_size + 1;
-    printf("URL: %s\n", req->url);
     parse_path(req);
 
     return req;
@@ -86,11 +97,14 @@ struct http_request *parse_http_request(uint8_t *buffer, size_t buffer_size) {
 
 void free_http_request(struct http_request *req) {
     free(req->url);
-    for (int i = 0; i < req->path_size; i++) {
-        free(req->path[i]->name);
-        free(req->path[i]);
+    struct path *current = req->path;
+    struct path *next;
+    while (current != NULL) {
+        next = current->next;
+        free(current->name);
+        free(current);
+        current = next;
     }
-    free(req->path);
     free(req);
 }
 
@@ -127,7 +141,7 @@ void free_http_server(struct http_server *server) {
     close(server->server_fd);
 }
 
-struct http_response *create_http_response(uint16_t status_code, uint8_t *body, size_t body_size, struct http_header *headers, size_t headers_size, uint8_t *msg, size_t msg_size) {
+struct http_response *create_http_response(uint16_t status_code, uint8_t *body, size_t body_size, struct http_header **headers, size_t headers_size, uint8_t *msg, size_t msg_size) {
     struct http_response *res = malloc(sizeof(struct http_response));
     res->status_code = status_code;
     if (body_size != 0) {
@@ -157,9 +171,10 @@ struct http_response *create_http_response(uint16_t status_code, uint8_t *body, 
 
 void free_http_response(struct http_response *res) {
     free(res->body);
-    for(int i = 0; i < res->headers_size; i++) {
-        free(res->headers[i].name);
-        free(res->headers[i].value);
+    for (int i = 0; i < res->headers_size; i++) {
+        free(res->headers[i]->name);
+        free(res->headers[i]->value);
+        free(res->headers[i]);
     }
     free(res->headers);
     free(res->msg);
@@ -167,20 +182,47 @@ void free_http_response(struct http_response *res) {
 }
 
 uint8_t* http_response_to_string(struct http_response *res) {
-    uint8_t *response = malloc(res->body_size + res->msg_size + 1024);
+    uint8_t *response = malloc(1024 * 1024);
     sprintf(response, "HTTP/1.1 %d", res->status_code);
     if (res->msg_size != 0) {
         sprintf(response + strlen(response), " %s", res->msg);
     }
     if (res->headers_size != 0) {
         for (int i = 0; i < res->headers_size; i++) {
-            sprintf(response + strlen(response), "\r\n%s: %s", res->headers[i].name, res->headers[i].value);
+            sprintf(response + strlen(response), "\r\n%s: %s", res->headers[i]->name, res->headers[i]->value);
         }
-    } else {
-        sprintf(response + strlen(response), "\r\n");
     }
+    sprintf(response + strlen(response), "\r\n");
     sprintf(response + strlen(response), "\r\n%s", res->body);
     // print /0 at the end of the response
     sprintf(response + strlen(response), "\0");
     return response;
+}
+
+struct http_header *create_http_header(uint8_t *name, size_t name_size, uint8_t *value, size_t value_size) {
+    struct http_header *header = malloc(sizeof(struct http_header));
+    header->name = malloc(name_size);
+    strncpy(header->name, name, name_size);
+    header->name_size = name_size;
+    header->value = malloc(value_size);
+    strncpy(header->value, value, value_size);
+    header->value_size = value_size;
+    return header;
+}
+
+struct http_header **create_http_headers(size_t size, struct http_header *header[]) {
+    struct http_header **headers = malloc(size * sizeof(struct http_header *));
+    printf("size: %d\n", size);
+    for (int i = 0; i < size; i++) {
+        headers[i] = header[i];
+    }
+    return headers;
+}
+
+void send_response(int id, struct http_response *res) {
+    uint8_t *response = http_response_to_string(res);
+    size_t response_size = strlen(response);
+    send(id, response, response_size, 0);
+    printf("%s\n", response);
+    free(response);
 }
