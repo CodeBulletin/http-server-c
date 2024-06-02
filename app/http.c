@@ -282,9 +282,11 @@ uint8_t* http_response_to_string(struct http_response *res, size_t *response_siz
     }
 
     // Insert content-length header
-    uint8_t content_length_str[20];
-    sprintf(content_length_str, "%ld", content_length);
-    insert(res->headers, "Content-Length", content_length_str);
+    if (get(res->headers, "Content-Length") == NULL) {
+        uint8_t content_length_str[20];
+        sprintf(content_length_str, "%ld", content_length);
+        insert(res->headers, "Content-Length", content_length_str);
+    }
 
     if (res->headers != NULL) {
         for (size_t i = 0; i < res->headers->capacity; i++) {
