@@ -124,6 +124,48 @@ void getFile(int id, uint8_t *data, size_t data_size) {
 	free_http_response(not_found_res);
 }
 
+void postFile(int id, uint8_t *data, size_t data_size, uint8_t *path, size_t path_size) {
+	// Internal Server Error Response
+	struct hashmap *internal_server_error_headers = create_hashmap(2);
+	insert(internal_server_error_headers, "Content-Type", "text/plain");
+	insert(internal_server_error_headers, "Content-Length", "21");
+	struct http_response *internal_server_error_res = create_http_response(500, "Internal Server Error", 22, internal_server_error_headers, "Internal Server Error", 22);
+
+	if (directory == NULL) {
+		send_response(id, internal_server_error_res);
+		free_http_response(internal_server_error_res);
+		return;
+	}
+
+	uint8_t *file_path = malloc(path_size + strlen(directory) + 1);
+	strncpy(file_path, directory, strlen(directory));
+	strncpy(file_path + strlen(directory), path, path_size);
+	file_path[path_size + strlen(directory)] = '\0';
+
+	FILE *file = fopen(file_path, "w");
+	if (file == NULL) {
+		send_response(id, internal_server_error_res);
+		free(file_path);
+		free_http_response(internal_server_error_res);
+		return;
+	}
+
+	fwrite(data, 1, data_size, file);
+	fclose(file);
+
+	// Ok Response
+	struct hashmap *ok_headers = create_hashmap(2);
+	insert(ok_headers, "Content-Type", "text/plain");
+	insert(ok_headers, "Content-Length", "0");
+	struct http_response *ok_res = create_http_response(201, "", 0, ok_headers, "OK", 3);
+
+	send_response(id, ok_res);
+
+	free(file_path);
+	free_http_response(internal_server_error_res);
+	free_http_response(ok_res);
+}
+
 void* handle_request(void *arg) {
 	// Ok Response
 	struct hashmap *ok_headers = create_hashmap(2);
@@ -168,22 +210,21 @@ void* handle_request(void *arg) {
 		}
 		userAgent(id, user_agent, length);
 	} else if (req->method == GET && current != NULL && strcmp(current->name, "files") == 0) {
-		current = current->next;
-		uint8_t *data =  NULL;
-		size_t data_size = 0;
-		if (current != NULL) {
-			data = current->name;
-			data_size = current->name_size - 1;
-		}
-		getFile(id, data, data_size);
+		getFile(id, req->url + 7, req->url_size - 7);
+	} else if (req->method == POST && current != NULL && strcmp(current->name, "files") == 0) {
+		postFile(id, req->body, req->body_size, req->url + 7, req->url_size - 7);
 	}
 	else {
 		send_response(id, not_found_res);
 	}
 
+	printf("Request handled %s:%s\n", req->url, request_method_to_string(req->method));
+
 	free_http_request(req);	
 	free_http_response(ok_res);
 	free_http_response(not_found_res);
+
+	printf("Connection closed %d\n", id);
 
 	return NULL;
 }

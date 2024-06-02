@@ -2,15 +2,15 @@
 #include <pthread.h>
 
 void parse_path(struct http_request *req) {
-    int last_index = 1;
-    int current_index = 1;
-    int path_count = 0;
+    size_t last_index = 1;
+    size_t current_index = 1;
+    size_t path_count = 0;
     req->path = NULL;
     struct http_path *current_path = NULL;
     
     for (; current_index < req->url_size - 1; current_index++) {
         if (req->url[current_index] == '/') {
-            int path_size = current_index - last_index;
+            size_t path_size = current_index - last_index;
             if (path_size != 0) {
                 struct http_path *new_path = malloc(sizeof(struct http_path));
                 new_path->name = malloc(path_size + 1);
@@ -30,7 +30,7 @@ void parse_path(struct http_request *req) {
             last_index = current_index + 1;
         }
     }
-    int path_size = current_index - last_index;
+    size_t path_size = current_index - last_index;
     if (path_size != 0) {
         struct http_path *new_path = malloc(sizeof(struct http_path));
         new_path->name = malloc(path_size + 1);
@@ -50,13 +50,16 @@ void parse_path(struct http_request *req) {
     req->path_size = path_count;
 }
 
-void *parse_http_headers(uint8_t *buffer, size_t buffer_size, struct http_request *req) {
+void *parse_http_headers(uint8_t *buffer, size_t buffer_size, struct http_request *req, size_t *end) {
     // Skip to the first /r/n
+    size_t i = 0;
     uint8_t *current = buffer;
     while (current[0] != '\r' && current[1] != '\n') {
         current++;
+        i++;
     }  
     current += 2;
+    i += 2;
 
     req->headers = create_hashmap(100);
     
@@ -67,18 +70,21 @@ void *parse_http_headers(uint8_t *buffer, size_t buffer_size, struct http_reques
         header_end = header;
         while (header_end[0] != '\r' && header_end[1] != '\n') {
             header_end++;
+            i++;
         }
         header_end += 2;
+        i += 2;
         if (header_end - header == 2) {
+            *end = i;
             break;
         }
         // Process the header
         uint8_t *header_name = header;
         uint8_t *header_name_end = strchr(header_name, ':');
-        int header_name_size = header_name_end - header_name;
+        size_t header_name_size = header_name_end - header_name;
         uint8_t *header_value = header_name_end + 2;
         uint8_t *header_value_end = strchr(header_value, '\r');
-        int header_value_size = header_value_end - header_value;
+        size_t header_value_size = header_value_end - header_value;
 
         uint8_t *name = malloc(header_name_size + 1);
         strncpy(name, header_name, header_name_size);
@@ -98,7 +104,7 @@ void *parse_http_headers(uint8_t *buffer, size_t buffer_size, struct http_reques
 
 struct http_request *parse_http_request(uint8_t *buffer, size_t buffer_size) {
     struct http_request *req = malloc(sizeof(struct http_request));
-    int request_method_end = 0;
+    size_t request_method_end = 0;
     // parse the request method
     if (strncmp(buffer, "GET", 3) == 0) {
         req->method = GET;
@@ -132,7 +138,7 @@ struct http_request *parse_http_request(uint8_t *buffer, size_t buffer_size) {
     // parse the request url
     uint8_t *url_start = buffer + request_method_end + 1;
     uint8_t *url_end = strchr(url_start, ' ');
-    int url_size = url_end - url_start;
+    size_t url_size = url_end - url_start;
     req->url = malloc(url_size + 1);
     strncpy(req->url, url_start, url_size);
     req->url[url_size] = '\0';
@@ -140,7 +146,26 @@ struct http_request *parse_http_request(uint8_t *buffer, size_t buffer_size) {
     parse_path(req);
 
     // parse the request headers
-    parse_http_headers(buffer, buffer_size, req);
+    size_t end;
+    parse_http_headers(buffer, buffer_size, req, &end);
+
+    // parse the request body
+    
+    // Check if end is the end of the buffer
+    if (end == buffer_size) {
+        req->body = malloc(1);
+        strncpy(req->body, "\0", 1);
+        req->body_size = 1;
+        return req;
+    }
+
+    uint8_t *body_start = buffer + end;
+    uint8_t *body_end = buffer + buffer_size;
+    size_t body_size = body_end - body_start;
+    req->body = malloc(body_size + 1);
+    strncpy(req->body, body_start, body_size);
+    req->body[body_size] = '\0';
+    req->body_size = body_size + 1;
 
     return req;
 }
@@ -157,6 +182,7 @@ void free_http_request(struct http_request *req) {
     }
     if (req->headers != NULL)
         free_hashmap(req->headers);
+    free(req->body);
     free(req);
 }
 
@@ -234,7 +260,7 @@ uint8_t* http_response_to_string(struct http_response *res, size_t *response_siz
     }
 
     if (res->headers != NULL) {
-        for (int i = 0; i < res->headers->capacity; i++) {
+        for (size_t i = 0; i < res->headers->capacity; i++) {
             struct map *current = res->headers->maps[i];
             while (current != NULL) {
                 sprintf(response + strlen(response), "\r\n%s: %s", current->key, current->value);
@@ -288,7 +314,7 @@ void handle_client(struct http_server *server, void *(*handle_request)(void *)) 
 		int client_addr_len = sizeof(client_addr);
 		
 		int id = accept(server->server_fd, (struct sockaddr *) &client_addr, &client_addr_len);
-		// printf("Client connected\n");
+		printf("connected to client %d\n", id);
 
 		pthread_t thread;
 		int *client_id = &id;
