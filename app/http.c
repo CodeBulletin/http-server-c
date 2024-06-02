@@ -50,16 +50,13 @@ void parse_path(struct http_request *req) {
     req->path_size = path_count;
 }
 
-void *parse_http_headers(uint8_t *buffer, size_t buffer_size, struct http_request *req, size_t *end) {
+void *parse_http_headers(uint8_t *buffer, size_t buffer_size, struct http_request *req) {
     // Skip to the first /r/n
-    size_t i = 0;
     uint8_t *current = buffer;
     while (current[0] != '\r' && current[1] != '\n') {
         current++;
-        i++;
     }  
     current += 2;
-    i += 2;
 
     req->headers = create_hashmap(100);
     
@@ -70,12 +67,9 @@ void *parse_http_headers(uint8_t *buffer, size_t buffer_size, struct http_reques
         header_end = header;
         while (header_end[0] != '\r' && header_end[1] != '\n') {
             header_end++;
-            i++;
         }
         header_end += 2;
-        i += 2;
         if (header_end - header == 2) {
-            *end = i;
             break;
         }
         // Process the header
@@ -146,26 +140,25 @@ struct http_request *parse_http_request(uint8_t *buffer, size_t buffer_size) {
     parse_path(req);
 
     // parse the request headers
-    size_t end;
-    parse_http_headers(buffer, buffer_size, req, &end);
+    parse_http_headers(buffer, buffer_size, req);
 
     // parse the request body
-    
-    // Check if end is the end of the buffer
-    if (end == buffer_size) {
-        req->body = malloc(1);
-        strncpy(req->body, "\0", 1);
-        req->body_size = 1;
-        return req;
+    uint8_t *body_start = strstr(buffer, "\r\n\r\n");
+    if (body_start != NULL) {
+        body_start += 4;
+        size_t body_size = buffer_size - (body_start - buffer);
+        req->body = NULL;
+        req->body_size = 0;
+        if (body_size != 0) {
+            req->body = malloc(body_size);
+            strncpy(req->body, body_start, body_size);
+            req->body_size = body_size;
+        }
+    } else {
+        req->body = NULL;
+        req->body_size = 0;
     }
 
-    uint8_t *body_start = buffer + end;
-    uint8_t *body_end = buffer + buffer_size;
-    size_t body_size = body_end - body_start;
-    req->body = malloc(body_size + 1);
-    strncpy(req->body, body_start, body_size);
-    req->body[body_size] = '\0';
-    req->body_size = body_size + 1;
 
     return req;
 }

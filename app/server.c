@@ -142,6 +142,7 @@ void postFile(int id, uint8_t *data, size_t data_size, uint8_t *path, size_t pat
 	strncpy(file_path + strlen(directory), path, path_size);
 	file_path[path_size + strlen(directory)] = '\0';
 
+	// Create a txt file and write the data
 	FILE *file = fopen(file_path, "w");
 	if (file == NULL) {
 		send_response(id, internal_server_error_res);
@@ -150,14 +151,18 @@ void postFile(int id, uint8_t *data, size_t data_size, uint8_t *path, size_t pat
 		return;
 	}
 
+	printf("File Path: %s\n", file_path);
+	printf("Data: %s\n", data);
+	printf("Data Size: %ld\n", data_size);
+
 	fwrite(data, 1, data_size, file);
 	fclose(file);
 
-	// Ok Response
+	// Created Response
 	struct hashmap *ok_headers = create_hashmap(2);
 	insert(ok_headers, "Content-Type", "text/plain");
-	insert(ok_headers, "Content-Length", "0");
-	struct http_response *ok_res = create_http_response(201, "", 0, ok_headers, "OK", 3);
+	insert(ok_headers, "Content-Length", "25");
+	struct http_response *ok_res = create_http_response(201, "File Created Successfully", 26, ok_headers, "Created", 8);
 
 	send_response(id, ok_res);
 
