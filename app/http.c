@@ -1,5 +1,33 @@
 #include "http.h"
+#include <zlib.h>
 #include <pthread.h>
+
+char *gzip_compress(char *input, size_t *len, size_t *outlen) {
+    z_stream stream_s;
+    stream_s.zalloc = Z_NULL;
+    stream_s.zfree = Z_NULL;
+    stream_s.opaque = Z_NULL;
+    char *out = (char *)calloc(1024 * 1024, sizeof(char));
+    stream_s.next_in = (Bytef *)input;
+    stream_s.avail_in = *len;
+    stream_s.next_out = (Bytef *)out;
+    stream_s.avail_out = 1024 * 1024;
+    deflateInit2(&stream_s, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 0x1f, 8,
+                Z_DEFAULT_STRATEGY);
+    deflate(&stream_s, Z_FINISH);
+    deflateEnd(&stream_s);
+    *outlen = stream_s.total_out;
+    return out;
+}
+
+void to_hex(uint8_t *data, size_t data_size, uint8_t **hex_data, size_t *hex_data_size) {
+    *hex_data = malloc(data_size * 2);
+    for (size_t i = 0; i < data_size; i++) {
+        sprintf(*hex_data + i * 2, "%02x", data[i]);
+    }
+    *hex_data_size = data_size * 2;
+}
+
 
 void parse_path(struct http_request *req) {
     size_t last_index = 1;
@@ -175,7 +203,8 @@ void free_http_request(struct http_request *req) {
     }
     if (req->headers != NULL)
         free_hashmap(req->headers);
-    free(req->body);
+    if (req->body != NULL)
+        free(req->body);
     free(req);
 }
 
@@ -245,12 +274,17 @@ void free_http_response(struct http_response *res) {
     free(res);
 }
 
-uint8_t* http_response_to_string(struct http_response *res, size_t *response_size) {
+uint8_t* http_response_to_string(struct http_response *res, size_t *response_size, size_t content_length) {
     uint8_t *response = malloc(1024 * 1024);
     sprintf(response, "HTTP/1.1 %d", res->status_code);
     if (res->msg_size != 0) {
         sprintf(response + strlen(response), " %s", res->msg);
     }
+
+    // Insert content-length header
+    uint8_t content_length_str[20];
+    sprintf(content_length_str, "%ld", content_length);
+    insert(res->headers, "Content-Length", content_length_str);
 
     if (res->headers != NULL) {
         for (size_t i = 0; i < res->headers->capacity; i++) {
@@ -263,16 +297,52 @@ uint8_t* http_response_to_string(struct http_response *res, size_t *response_siz
     }
 
     sprintf(response + strlen(response), "\r\n");
-    sprintf(response + strlen(response), "\r\n%s", res->body);
+    sprintf(response + strlen(response), "\r\n");
     *response_size = strlen(response);
+
+    printf("Response: %s\n", response);
 
     return response;
 }
 
+void content_response(struct http_response *res, int id, uint8_t **bytes_content, size_t *bytes_content_length) {
+    uint8_t *content = NULL;
+    uint8_t *content_text = NULL;
+    size_t content_length = 0;
+
+    if (get(res->headers, "Content-Encoding") == NULL) {
+        content = res->body;
+        content_length = res->body_size;
+
+        content_text = malloc(content_length + 1);
+        strncpy(content_text, content, content_length);
+        content_text[content_length] = '\0';
+    } else {
+        size_t outlen = 0;
+        content_text = gzip_compress(res->body, &res->body_size, &outlen);
+        content_length = outlen;
+    }
+
+    *bytes_content = content_text;
+    *bytes_content_length = content_length;
+}
+
 void send_response(int id, struct http_response *res) {
     size_t res_size;
-    uint8_t *response = http_response_to_string(res, &res_size);
-    send(id, response, res_size, 0);
+    uint8_t *content = NULL;
+    size_t content_length = 0;
+    content_response(res, id, &content, &content_length);
+    uint8_t *response = http_response_to_string(res, &res_size, content_length);
+
+    // concatenate the response and the content
+    uint8_t *response_content = malloc(res_size + content_length);
+    strncpy(response_content, response, res_size);
+    memcpy(response_content + res_size, content, content_length);
+
+    send(id, response_content, res_size + content_length, 0);
+
+    free(response_content);
+    free(content);
     free(response);
 }
 

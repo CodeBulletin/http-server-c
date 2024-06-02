@@ -9,7 +9,6 @@ void echo(int id, uint8_t *data, size_t data_size, struct hashmap *headers) {
 	// Bad Request Response
 	struct hashmap *bad_request_headers = create_hashmap(2);
 	insert(bad_request_headers, "Content-Type", "text/plain");
-	insert(bad_request_headers, "Content-Length", "25");
 	struct http_response *bad_request_res = create_http_response(400, "Bad Request Echo is Empty", 26, bad_request_headers, "Bad Request", 12);
 
 	if (data_size == 0) {
@@ -20,13 +19,10 @@ void echo(int id, uint8_t *data, size_t data_size, struct hashmap *headers) {
 
 	struct hashmap *ok_headers = create_hashmap(2);
 	insert(ok_headers, "Content-Type", "text/plain");
-	uint8_t *content_length = integer_to_sring(data_size);
-	insert(ok_headers, "Content-Length", content_length);
 	uint8_t *encoding_accepted = get(headers, "Accept-Encoding");
 	if (encoding_accepted != NULL && strstr(encoding_accepted, "gzip") != NULL) {
 		insert(ok_headers, "Content-Encoding", "gzip");
 	}
-	free(content_length);
 
 	struct http_response *echo_res = create_http_response(200, data, data_size, ok_headers, "OK", 3);
 	send_response(id, echo_res);
@@ -49,13 +45,10 @@ void userAgent(int id, uint8_t *data, size_t data_size, struct hashmap *headers)
 
 	struct hashmap *ok_headers = create_hashmap(2);
 	insert(ok_headers, "Content-Type", "text/plain");
-	uint8_t *content_length = integer_to_sring(data_size);
-	insert(ok_headers, "Content-Length", content_length);	
 	uint8_t *encoding_accepted = get(headers, "Accept-Encoding");
 	if (encoding_accepted != NULL && strstr(encoding_accepted, "gzip") != NULL) {
 		insert(ok_headers, "Content-Encoding", "gzip");
 	}
-	free(content_length);
 
 	struct http_response *user_agent_res = create_http_response(200, data, data_size, ok_headers, "OK", 3);
 	send_response(id, user_agent_res);

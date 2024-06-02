@@ -71,7 +71,6 @@ struct http_app {
 struct http_request *parse_http_request(uint8_t *buffer, size_t buffer_size);
 void create_http_server(struct http_server *server);
 struct http_response *create_http_response(uint16_t status_code, uint8_t *body, size_t body_size, struct hashmap *headers, uint8_t *msg, size_t msg_size);
-uint8_t* http_response_to_string(struct http_response *res, size_t *response_size);
 void send_response(int id, struct http_response *res);
 
 void free_http_request(struct http_request *req);
