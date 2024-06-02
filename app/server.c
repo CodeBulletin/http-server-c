@@ -5,7 +5,7 @@
 
 char* directory = NULL;
 
-void echo(int id, uint8_t *data, size_t data_size) {
+void echo(int id, uint8_t *data, size_t data_size, struct hashmap *headers) {
 	// Bad Request Response
 	struct hashmap *bad_request_headers = create_hashmap(2);
 	insert(bad_request_headers, "Content-Type", "text/plain");
@@ -18,19 +18,23 @@ void echo(int id, uint8_t *data, size_t data_size) {
 		return;
 	}
 
-	struct hashmap *headers = create_hashmap(2);
-	insert(headers, "Content-Type", "text/plain");
+	struct hashmap *ok_headers = create_hashmap(2);
+	insert(ok_headers, "Content-Type", "text/plain");
 	uint8_t *content_length = integer_to_sring(data_size);
-	insert(headers, "Content-Length", content_length);
+	insert(ok_headers, "Content-Length", content_length);
+	uint8_t *encoding_accepted = get(headers, "Accept-Encoding");
+	if (encoding_accepted != NULL && strcmp(encoding_accepted, "gzip") == 0) {
+		insert(ok_headers, "Content-Encoding", "gzip");
+	}
 	free(content_length);
 
-	struct http_response *echo_res = create_http_response(200, data, data_size, headers, "OK", 3);
+	struct http_response *echo_res = create_http_response(200, data, data_size, ok_headers, "OK", 3);
 	send_response(id, echo_res);
 	free_http_response(echo_res);
 	free_http_response(bad_request_res);
 }
 
-void userAgent(int id, uint8_t *data, size_t data_size) {
+void userAgent(int id, uint8_t *data, size_t data_size, struct hashmap *headers) {
 	// Bad Request Response
 	struct hashmap *bad_request_headers = create_hashmap(2);
 	insert(bad_request_headers, "Content-Type", "text/plain");
@@ -43,19 +47,23 @@ void userAgent(int id, uint8_t *data, size_t data_size) {
 		return;
 	}
 
-	struct hashmap *headers = create_hashmap(2);
-	insert(headers, "Content-Type", "text/plain");
+	struct hashmap *ok_headers = create_hashmap(2);
+	insert(ok_headers, "Content-Type", "text/plain");
 	uint8_t *content_length = integer_to_sring(data_size);
-	insert(headers, "Content-Length", content_length);
+	insert(ok_headers, "Content-Length", content_length);	
+	uint8_t *encoding_accepted = get(headers, "Accept-Encoding");
+	if (encoding_accepted != NULL && strcmp(encoding_accepted, "gzip") == 0) {
+		insert(ok_headers, "Content-Encoding", "gzip");
+	}
 	free(content_length);
 
-	struct http_response *user_agent_res = create_http_response(200, data, data_size, headers, "OK", 3);
+	struct http_response *user_agent_res = create_http_response(200, data, data_size, ok_headers, "OK", 3);
 	send_response(id, user_agent_res);
 	free_http_response(user_agent_res);
 	free_http_response(bad_request_res);
 }
 
-void getFile(int id, uint8_t *data, size_t data_size) {
+void getFile(int id, uint8_t *data, size_t data_size, struct hashmap *headers) {
 	// Internal Server Error Response
 	struct hashmap *internal_server_error_headers = create_hashmap(2);
 	insert(internal_server_error_headers, "Content-Type", "text/plain");
@@ -110,12 +118,16 @@ void getFile(int id, uint8_t *data, size_t data_size) {
 	fread(file_data, 1, file_size, file);
 	fclose(file);
 
-	struct hashmap *headers = create_hashmap(2);
-	insert(headers, "Content-Type", "application/octet-stream");
-	insert(headers, "Content-Length", integer_to_sring(file_size));
+	struct hashmap *ok_headers = create_hashmap(2);
+	insert(ok_headers, "Content-Type", "application/octet-stream");
+	insert(ok_headers, "Content-Length", integer_to_sring(file_size));
+	uint8_t *encoding_accepted = get(headers, "Accept-Encoding");
+	if (encoding_accepted != NULL && strcmp(encoding_accepted, "gzip") == 0) {
+		insert(ok_headers, "Content-Encoding", "gzip");
+	}
 	size_t content_length = file_size;
 
-	struct http_response *file_res = create_http_response(200, file_data, file_size, headers, "OK", 3);
+	struct http_response *file_res = create_http_response(200, file_data, file_size, ok_headers, "OK", 3);
 	send_response(id, file_res);
 
 	free(file_path);
@@ -206,16 +218,16 @@ void* handle_request(void *arg) {
 			data = current->name;
 			data_size = current->name_size - 1;
 		}
-		echo(id, data, data_size);
+		echo(id, data, data_size, req->headers);
 	} else if (req->method == GET && current != NULL && strcmp(current->name, "user-agent") == 0) {
 		int length = 0;
 		uint8_t *user_agent = get(req->headers, "User-Agent");
 		if (user_agent != NULL) {
 			length = strlen(user_agent);
 		}
-		userAgent(id, user_agent, length);
+		userAgent(id, user_agent, length, req->headers);
 	} else if (req->method == GET && current != NULL && strcmp(current->name, "files") == 0) {
-		getFile(id, req->url + 7, req->url_size - 7);
+		getFile(id, req->url + 7, req->url_size - 7, req->headers);
 	} else if (req->method == POST && current != NULL && strcmp(current->name, "files") == 0) {
 		postFile(id, req->body, req->body_size, req->url + 7, req->url_size - 7);
 	}
