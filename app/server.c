@@ -2,8 +2,9 @@
 #include "http.h"
 #include "helper.h"
 #include <pthread.h>
+#include <time.h>
 
-char* directory = NULL;
+char *directory = NULL;
 
 void echo(int id, uint8_t *data, size_t data_size, struct hashmap *headers) {
 	// Bad Request Response
@@ -113,7 +114,6 @@ void getFile(int id, uint8_t *data, size_t data_size, struct hashmap *headers) {
 
 	struct hashmap *ok_headers = create_hashmap(2);
 	insert(ok_headers, "Content-Type", "application/octet-stream");
-	insert(ok_headers, "Content-Length", integer_to_sring(file_size));
 	uint8_t *encoding_accepted = get(headers, "Accept-Encoding");
 	if (encoding_accepted != NULL && strstr(encoding_accepted, "gzip") != NULL) {
 		insert(ok_headers, "Content-Encoding", "gzip");
@@ -127,6 +127,32 @@ void getFile(int id, uint8_t *data, size_t data_size, struct hashmap *headers) {
 	free_http_response(internal_server_error_res);
 	free_http_response(bad_request_res);
 	free_http_response(not_found_res);
+}
+
+void site(int id, uint8_t *data, size_t data_size, struct hashmap *headers) {
+	FILE *file = fopen("./site/index.html", "r");
+	if (file == NULL) {
+		return;
+	}
+
+	fseek(file, 0, SEEK_END);
+	size_t file_size = ftell(file);
+	fseek(file, 0, SEEK_SET);
+
+	uint8_t *file_data = malloc(file_size);
+	fread(file_data, 1, file_size, file);
+	fclose(file);
+
+	// render html
+	struct hashmap *ok_headers = create_hashmap(2);
+	insert(ok_headers, "Content-Type", "text/html");
+	uint8_t *encoding_accepted = get(headers, "Accept-Encoding");
+	if (encoding_accepted != NULL && strstr(encoding_accepted, "gzip") != NULL) {
+		insert(ok_headers, "Content-Encoding", "gzip");
+	}
+
+	struct http_response *file_res = create_http_response(200, file_data, file_size, ok_headers, "OK", 3);
+	send_response(id, file_res);
 }
 
 void postFile(int id, uint8_t *data, size_t data_size, uint8_t *path, size_t path_size) {
@@ -156,10 +182,6 @@ void postFile(int id, uint8_t *data, size_t data_size, uint8_t *path, size_t pat
 		return;
 	}
 
-	printf("File Path: %s\n", file_path);
-	printf("Data: %s\n", data);
-	printf("Data Size: %ld\n", data_size);
-
 	fwrite(data, 1, data_size, file);
 	fclose(file);
 
@@ -177,6 +199,12 @@ void postFile(int id, uint8_t *data, size_t data_size, uint8_t *path, size_t pat
 }
 
 void* handle_request(void *arg) {
+	// sleep for 0.5 seconds
+	struct timespec ts;
+	ts.tv_sec = 0;
+	ts.tv_nsec = 500000000;
+	nanosleep(&ts, NULL);
+
 	// Ok Response
 	struct hashmap *ok_headers = create_hashmap(2);
 	insert(ok_headers, "Content-Type", "text/plain");
@@ -191,12 +219,10 @@ void* handle_request(void *arg) {
 
 
 	int id = *((int *) arg);
-	uint8_t* request_buffer = malloc(1024 * 1024);
-	int bytes_received = recv(id, request_buffer, 1024 * 1024, 0);
-	if(bytes_received < 0) {
-		perror("Error receiving data from client");
-		return NULL;
-	}
+	uint8_t* request_buffer = malloc(1024);
+	// int bytes_received = recv(id, request_buffer, 1024, 0);
+	int bytes_received = recv(id, request_buffer, 1023, 0);
+
 	struct http_request *req = parse_http_request(request_buffer, bytes_received);
 	printf("%s request at %s\n", request_method_to_string(req->method), req->url);
 	struct http_path *current = req->path;
@@ -223,18 +249,18 @@ void* handle_request(void *arg) {
 		getFile(id, req->url + 7, req->url_size - 7, req->headers);
 	} else if (req->method == POST && current != NULL && strcmp(current->name, "files") == 0) {
 		postFile(id, req->body, req->body_size, req->url + 7, req->url_size - 7);
+	} else if (req->method == GET && current != NULL && strcmp(current->name, "site") == 0) {
+		site(id, req->url + 6, req->url_size - 6, req->headers);
 	}
 	else {
 		send_response(id, not_found_res);
 	}
 
-	printf("Request handled %s:%s\n", req->url, request_method_to_string(req->method));
-
 	free_http_request(req);	
 	free_http_response(ok_res);
 	free_http_response(not_found_res);
 
-	printf("Connection closed %d\n", id);
+	printf("Request completed for client %d\n", id);
 
 	return NULL;
 }
@@ -248,11 +274,11 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	// printf("Logs from your program will appear here!\n");
+	printf("Server is running on port 4221\n");
 
 	struct http_server server = {
 		.port = 4221,
-		.connection_backlog = 20,
+		.connection_backlog = 10,
 		.reuse = 1,
 	};
 
@@ -261,8 +287,6 @@ int main(int argc, char *argv[]) {
 	handle_client(&server, handle_request);
 
 	free_http_server(&server);
-
-	// printf("Connection closed\n");
 
 	return 0;
 }

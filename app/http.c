@@ -302,8 +302,6 @@ uint8_t* http_response_to_string(struct http_response *res, size_t *response_siz
     sprintf(response + strlen(response), "\r\n");
     *response_size = strlen(response);
 
-    printf("Response: %s\n", response);
-
     return response;
 }
 
@@ -374,6 +372,7 @@ char* request_method_to_string(enum http_request_type method) {
 void handle_client(struct http_server *server, void *(*handle_request)(void *)) {
 	while (1)
 	{
+        printf("Waiting for client...\n");
 		struct sockaddr_in client_addr;
 
 		int client_addr_len = sizeof(client_addr);
