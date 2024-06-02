@@ -1,6 +1,4 @@
-CodeBulletin: <!-- Write a readme about http c server it supports compression -->
-
-GitHub Copilot: # HTTP C Server
+# HTTP C Server
 
 This project is an implementation of a HTTP server in C. It's a lightweight, high-performance server designed to serve static files or can be integrated with other software to provide a dynamic content generation.
 
