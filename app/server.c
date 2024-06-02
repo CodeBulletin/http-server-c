@@ -23,7 +23,7 @@ void echo(int id, uint8_t *data, size_t data_size, struct hashmap *headers) {
 	uint8_t *content_length = integer_to_sring(data_size);
 	insert(ok_headers, "Content-Length", content_length);
 	uint8_t *encoding_accepted = get(headers, "Accept-Encoding");
-	if (encoding_accepted != NULL && strcmp(encoding_accepted, "gzip") == 0) {
+	if (encoding_accepted != NULL && strstr(encoding_accepted, "gzip") != NULL) {
 		insert(ok_headers, "Content-Encoding", "gzip");
 	}
 	free(content_length);
@@ -52,7 +52,7 @@ void userAgent(int id, uint8_t *data, size_t data_size, struct hashmap *headers)
 	uint8_t *content_length = integer_to_sring(data_size);
 	insert(ok_headers, "Content-Length", content_length);	
 	uint8_t *encoding_accepted = get(headers, "Accept-Encoding");
-	if (encoding_accepted != NULL && strcmp(encoding_accepted, "gzip") == 0) {
+	if (encoding_accepted != NULL && strstr(encoding_accepted, "gzip") != NULL) {
 		insert(ok_headers, "Content-Encoding", "gzip");
 	}
 	free(content_length);
@@ -122,7 +122,7 @@ void getFile(int id, uint8_t *data, size_t data_size, struct hashmap *headers) {
 	insert(ok_headers, "Content-Type", "application/octet-stream");
 	insert(ok_headers, "Content-Length", integer_to_sring(file_size));
 	uint8_t *encoding_accepted = get(headers, "Accept-Encoding");
-	if (encoding_accepted != NULL && strcmp(encoding_accepted, "gzip") == 0) {
+	if (encoding_accepted != NULL && strstr(encoding_accepted, "gzip") != NULL) {
 		insert(ok_headers, "Content-Encoding", "gzip");
 	}
 	size_t content_length = file_size;
