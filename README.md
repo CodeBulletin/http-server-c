@@ -1,38 +1,41 @@
-[![progress-banner](https://backend.codecrafters.io/progress/http-server/4dfcbbc6-1571-4d1e-93ef-94b913f71398)](https://app.codecrafters.io/users/codecrafters-bot?r=2qF)
+CodeBulletin: <!-- Write a readme about http c server it supports compression -->
 
-This is a starting point for C solutions to the
-["Build Your Own HTTP server" Challenge](https://app.codecrafters.io/courses/http-server/overview).
+GitHub Copilot: # HTTP C Server
 
-[HTTP](https://en.wikipedia.org/wiki/Hypertext_Transfer_Protocol) is the
-protocol that powers the web. In this challenge, you'll build a HTTP/1.1 server
-that is capable of serving multiple clients.
+This project is an implementation of a HTTP server in C. It's a lightweight, high-performance server designed to serve static files or can be integrated with other software to provide a dynamic content generation.
 
-Along the way you'll learn about TCP servers,
-[HTTP request syntax](https://www.w3.org/Protocols/rfc2616/rfc2616-sec5.html),
-and more.
+## Features
 
-**Note**: If you're viewing this repo on GitHub, head over to
-[codecrafters.io](https://codecrafters.io) to try the challenge.
+- **HTTP/1.1 Support**: This server supports the HTTP/1.1 protocol, including methods such as GET, POST, PUT, DELETE, etc.
 
-# Passing the first stage
+- **Compression**: One of the key features of this server is its support for compression. It uses gzip compression to reduce the size of the HTTP response, which can significantly improve the performance especially for large files or slow network connections.
 
-The entry point for your HTTP server implementation is in `app/server.c`. Study
-and uncomment the relevant code, and push your changes to pass the first stage:
+## Building
 
-```sh
-git add .
-git commit -m "pass 1st stage" # any msg
-git push origin master
+To build the server, you need a C compiler such as gcc. You can build the server using the following command:
+
+```bash
+gcc -o server app/server.c app/http.c app/map.c -lcurl -lz
 ```
 
-Time to move on to the next stage!
+## Running
 
-# Stage 2 & beyond
+To run the server, use the following command:
 
-Note: This section is for stages 2 and beyond.
+```bash
+./server
+```
 
-1. Ensure you have `gcc` installed locally
-1. Run `./your_server.sh` to run your program, which is implemented in
-   `app/server.c`.
-1. Commit your changes and run `git push origin master` to submit your solution
-   to CodeCrafters. Test output will be streamed to your terminal.
+## To Host files in a directory
+
+```bash
+./server --directory <directory absolute or relative>
+```
+
+## Contributing
+
+Contributions are welcome! Please read the contributing guide for details.
+
+## License
+
+This project is licensed under the MIT License. See the LICENSE file for details.
